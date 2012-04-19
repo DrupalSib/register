@@ -1,0 +1,47 @@
+<?php
+
+/**
+ * Implements hook_register().
+ */
+function register_test_register() {
+  return array(
+
+    'transaction_status' => array(
+      'type' => 'history',
+      'dimensions' => array(
+        'type_id' => array('type' => 'varchar', 'length' => 50, 'not null' => TRUE),
+        'transaction_id' => array('type' => 'varchar', 'length' => 128, 'not null' => TRUE),
+      ),
+      'resources' => array(
+        'status' => array('type' => 'varchar', 'length' => 50, 'not null' => TRUE),
+      ),
+      'details' => array(
+        'invoice_id' => array('type' => 'int', 'not null' => TRUE),
+      ),
+    ),
+
+    'variables' => array(
+      'type' => 'info',
+      'dimensions' => array(
+        'name' => array('type' => 'varchar', 'length' => 100, 'not null' => TRUE),
+      ),
+      'resources' => array(
+        'value' => array('type' => 'varchar', 'length' => 255, 'not null' => TRUE),
+      ),
+    ),
+
+    'balance' => array(
+      'type' => 'movement',
+      'remnants' => TRUE,
+      'dimensions' => array(
+        'uid' => array('type' => 'int', 'not null' => TRUE),
+      ),
+      'resources' => array(
+        'sum' => array('type' => 'float', 'size' => 'big', 'not null' => TRUE),
+      ),
+      'details' => array(
+        'invoice_id' => array('type' => 'int', 'not null' => FALSE, 'default' => NULL),
+      ),
+    ),
+  );
+}

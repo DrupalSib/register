@@ -1,0 +1,14 @@
+name = Register
+description = Allows to create data registers
+core = 7.x
+package = Data tools
+
+dependencies[] = ctools
+
+files[] = includes/types.inc
+files[] = includes/export.inc
+files[] = includes/period.inc
+files[] = includes/selection.inc
+
+; Tests
+;files[] = tests/registers.test

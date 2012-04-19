@@ -1,0 +1,6 @@
+name = Register Test
+description = Test module for Register.
+package = Data tools
+core = 7.x
+dependencies[] = register
+hidden = FALSE

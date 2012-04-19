@@ -1,0 +1,334 @@
+<?php
+/**
+ * @file
+ *
+ *
+ */
+
+/**
+ *
+ */
+abstract class RegisterTestCase extends DrupalWebTestCase {
+
+  function setUp() {
+    parent::setUp('register_test');
+  }
+}
+
+/**
+ *
+ */
+class RegisterCoreTestCase extends RegisterTestCase {
+
+  public static function getInfo() {
+    return array(
+      'name' => 'Register core',
+      'description' => 'Test register core.',
+      'group' => 'Register'
+    );
+  }
+
+  function testRegisterType() {
+    $types = register_get_type();
+    $this->assertFalse(empty($types['info']));
+    $this->assertFalse(empty($types['history']));
+    $this->assertFalse(empty($types['movement']));
+    $this->assertFalse(empty($types['accounting']));
+
+    $type = register_get_type('history');
+    $this->assertFalse(empty($type['class']));
+    $this->assertFalse(empty($type['file']));
+  }
+
+  function testGetRegister() {
+    $reg = register_get('transaction_status');
+    $this->assertEqual(get_class($reg), 'RegisterTypeHistory');
+  }
+
+  function testGetRegisterAll() {
+    $regs = register_get_all();
+    $this->assertFalse(empty($regs));
+    foreach ($regs as $name => $item) {
+      $this->assertFalse(empty($name));
+      $this->assertFalse(empty($item['module']));
+      $this->assertFalse(empty($item['conf']));
+      $this->assertTrue(is_subclass_of($item['instance'], 'RegisterTypeAbstract'));
+    }
+
+    $regs = register_get_all('register_test');
+    $this->assertFalse(empty($regs));
+    foreach ($regs as $name => $item) {
+      $this->assertFalse(empty($name));
+      $this->assertFalse(empty($item['module']));
+      $this->assertFalse(empty($item['conf']));
+      $this->assertTrue(is_subclass_of($item['instance'], 'RegisterTypeAbstract'));
+    }
+  }
+
+  function testGetSchema() {
+    $schema = register_get_schema('register_test');
+    $this->assertFalse(empty($schema));
+    foreach ($schema as $item) {
+      $this->assertFalse(empty($item['fields']));
+    }
+  }
+
+  function testSelection() {
+    $selection = new RegisterSelection('test_table');
+
+    $query = db_select('register_selection');
+    $query->condition('selection_id', $selection->getId());
+    $record = $query->execute()->fetchAssoc();
+
+    $this->assertFalse(empty($record['id']));
+    $this->assertFalse(empty($record['clean']));
+    $this->assertFalse(empty($record['updated']));
+    $this->assertFalse($record['clean']);
+    $this->assertTrue($record['table'] == 'test_table');
+  }
+}
+
+class RegisterInfoTestCase extends RegisterTestCase {
+
+  public static function getInfo() {
+    return array(
+      'name' => 'Register Info',
+      'description' => 'Test info register.',
+      'group' => 'Register'
+    );
+  }
+
+  function testRegister() {
+    $reg = register_get('variables');
+    $this->assertEqual(get_class($reg), 'RegisterTypeInfo');
+
+    $data = array();
+    for ($i = 0; $i < 10; $i++) {
+      $key = uniqid('key');
+      $value = uniqid('value1_');
+      $reg->setValue(array('name' => $key, 'value' => $value));
+      $data[$key] = $value;
+    }
+
+    foreach ($data as $key => $value) {
+      $data[$key] = uniqid('value2_');
+      $reg->setValue(array('name' => $key, 'value' => $data[$key]));
+    }
+
+    foreach ($data as $key => $value) {
+      $result = $reg->getValue(array('name' => $key));
+      $this->assertEqual($result['value'], $value);
+    }
+  }
+}
+
+class RegisterHistoryTestCase extends RegisterTestCase {
+
+  public static function getInfo() {
+    return array(
+      'name' => 'Register History',
+      'description' => 'Test history register.',
+      'group' => 'Register'
+    );
+  }
+
+  function testRegister() {
+    $reg = register_get('transaction_status');
+    $this->assertEqual(get_class($reg), 'RegisterTypeHistory');
+
+    $date1 = strtotime('10.03.2012');
+    $date2 = strtotime('15.03.2012');
+    $date3 = strtotime('20.03.2012');
+
+    $data = array();
+    for ($i = 0; $i < 10; $i++) {
+      $value = array(
+        'type_id' => rand(1, 10),
+        'transaction_id' => md5(rand(1000, 10000)),
+        'invoice_id' => rand(1000, 10000),
+      );
+      $value1 = array_merge(array('date' => $date1, 'status' => uniqid('status1-')), $value);
+      $value2 = array_merge(array('date' => $date2, 'status' => uniqid('status2-')), $value);
+      $value3 = array_merge(array('date' => $date3, 'status' => uniqid('status3-')), $value);
+      $reg->setValue($value3);
+      $reg->setValue($value1);
+      $reg->setValue($value2);
+
+      $value3 = array_merge(array('date' => $date3, 'status' => uniqid('status31-')), $value);
+      $reg->setValue($value3);
+
+      $data[$i][1] = $value1;
+      $data[$i][2] = $value2;
+      $data[$i][3] = $value3;
+    }
+
+    foreach ($data as $value) {
+      $value1 = $value[1];
+      $value2 = $value[2];
+      $value3 = $value[3];
+
+      $result = $reg->getValue(array(
+        'type_id' => $value3['type_id'],
+        'transaction_id' => $value3['transaction_id'])
+      );
+      $this->assertEqual($result['status'], $value3['status']);
+
+      $result = $reg->getValue(array(
+        'date' => $value3['date'] - 10,
+        'type_id' => $value3['type_id'],
+        'transaction_id' => $value3['transaction_id'])
+      );
+      $this->assertEqual($result['status'], $value2['status']);
+
+      $result = $reg->getValue(array(
+        'date' => $value1['date'],
+        'type_id' => $value1['type_id'],
+        'transaction_id' => $value1['transaction_id'])
+      );
+      $this->assertEqual($result['status'], $value1['status']);
+
+      $result = $reg->getValue(array(
+        'date' => $value1['date'] - 20,
+        'type_id' => $value1['type_id'],
+        'transaction_id' => $value1['transaction_id'])
+      );
+      $this->assertNull($result['status']);
+    }
+  }
+}
+
+class RegisterMovementTestCase extends RegisterTestCase {
+
+  public static function getInfo() {
+    return array(
+      'name' => 'Register Movement',
+      'description' => 'Test movement register.',
+      'group' => 'Register'
+    );
+  }
+
+  function testRegister() {
+    $reg = register_get('balance');
+    $this->assertEqual(get_class($reg), 'RegisterTypeMovement');
+
+    $data = array(
+      // 2010-12-01
+      array('date' => '2011-01-01', 'uid' => 1, 'sum' => 30, 'rid' => 1),
+      array('date' => '2011-01-01', 'uid' => 2, 'sum' => 40, 'rid' => 200, 'delete' => 1),
+      array('date' => '2011-01-05', 'uid' => 1, 'sum' => 20, 'rid' => 3, 'rnm' => 1),
+      array('date' => '2011-01-05', 'uid' => 2, 'sum' => 30, 'rid' => 3, 'rnm' => 2),
+      array('date' => '2011-01-05', 'uid' => 3, 'sum' => 40, 'rid' => 3, 'rnm' => 3),
+      array('date' => '2011-01-10', 'uid' => 1, 'sum' => 10, 'rid' => 4),
+      array('date' => '2011-01-20', 'uid' => 1, 'sum' => -30, 'rid' => 5),
+      array('date' => '2011-01-20', 'uid' => 1, 'sum' => 10, 'rid' => 6),
+      // 2011-02-01
+      array('date' => '2011-02-10', 'uid' => 1, 'sum' => 40, 'rid' => 7),
+      array('date' => '2011-02-12', 'uid' => 1, 'sum' => -20, 'rid' => 800, 'delete' => 1),
+      // 2011-03-05
+      array('date' => '2011-03-20', 'uid' => 1, 'sum' => 100, 'rid' => 900, 'newsum' => 200),
+      // 2011-04-01
+      array('date' => '2011-04-15', 'uid' => 1, 'sum' => 240, 'rid' => 10),
+      // 2011-05-15
+      array('date' => '2011-06-10', 'uid' => 2, 'sum' => 40, 'rid' => 11),
+      // 2011-07-10
+      array('date' => '2011-08-01', 'uid' => 1, 'sum' => 20, 'rid' => 12),
+      // 2011-10-29
+    );
+
+    $check = array(
+      '2010-12-01' => array('1' => 0, '2' => 0, '3' => 0),
+      '2011-02-01' => array('1' => 40, '2' => 70, '3' => 40),
+      '2011-03-05' => array('1' => 60, '2' => 70, '3' => 40),
+      '2011-04-01' => array('1' => 160, '2' => 70, '3' => 40),
+      '2011-05-15' => array('1' => 400, '2' => 70, '3' => 40),
+      '2011-07-10' => array('1' => 400, '2' => 110, '3' => 40),
+      '2011-10-29' => array('1' => 4200, '2' => 110, '3' => 40),
+    );
+
+    $check_after_delete = array(
+      '2010-12-01' => array('1' => 0, '2' => 0, '3' => 0),
+      '2011-02-01' => array('1' => 40, '2' => 30, '3' => 40),
+      '2011-03-05' => array('1' => 400, '2' => 30, '3' => 40),
+      '2011-04-01' => array('1' => 140, '2' => 30, '3' => 40),
+      '2011-05-15' => array('1' => 380, '2' => 30, '3' => 40),
+      '2011-07-10' => array('1' => 380, '2' => 70, '3' => 40),
+      '2011-10-29' => array('1' => 400, '2' => 70, '3' => 40),
+    );
+
+    $check_after_newsum = array(
+      '2010-12-01' => array('1' => 0, '2' => 0, '3' => 0),
+      '2011-02-01' => array('1' => 40, '2' => 30, '3' => 40),
+      '2011-03-05' => array('1' => 400, '2' => 30, '3' => 40),
+      '2011-04-01' => array('1' => 240, '2' => 30, '3' => 40),
+      '2011-05-15' => array('1' => 480, '2' => 30, '3' => 40),
+      '2011-07-10' => array('1' => 480, '2' => 70, '3' => 40),
+      '2011-10-29' => array('1' => 500, '2' => 70, '3' => 40),
+    );
+
+    $date = new DateTime();
+
+    foreach ($data as $v) {
+      $value = array(
+        'rtp' => 'node',
+        'rid' => $v['rid'],
+        'rnm' => isset($v['rnm']) ? $v['rnm'] : 1,
+        'date' => $date->modify($v['date'])->getTimestamp(),
+        'uid' => $v['uid'],
+        'sum' => $v['sum'],
+        'invoice_id' => uniqid('invoice'),
+      );
+      $reg->addMovement($value);
+    }
+
+    foreach ($check as $date => $value) {
+      $remnants = $reg->getRemnants(array('date' => $date->modify($date)->getTimestamp()));
+      foreach ($value as $uid => $sum) {
+        $this->assertEqual($sum, isset($remnants[$uid]) ? $remnants[$uid] : 0);
+      }
+    }
+
+    foreach ($data as $v) {
+      if (!empty($v['delete'])) {
+        $value = array(
+          'rtp' => 'node',
+          'rid' => $v['rid'],
+          'rnm' => isset($v['rnm']) ? $v['rnm'] : 1,
+          'date' => $date->modify($v['date'])->getTimestamp(),
+          'uid' => $v['uid'],
+          'sum' => $v['sum'],
+        );
+        $reg->removeMovements($value);
+      }
+    }
+
+    foreach ($check_after_delete as $date => $value) {
+      $remnants = $reg->getRemnants(array('date' => $date->modify($date)->getTimestamp()));
+      foreach ($value as $uid => $sum) {
+        $this->assertEqual($sum, isset($remnants[$uid]) ? $remnants[$uid] : 0);
+      }
+    }
+
+    foreach ($data as $v) {
+      if (!empty($v['newsum'])) {
+        $value = array(
+          'rtp' => 'node',
+          'rid' => $v['rid'],
+          'rnm' => isset($v['rnm']) ? $v['rnm'] : 1,
+          'date' => $date->modify($v['date'])->getTimestamp(),
+          'uid' => $v['uid'],
+          'sum' => $v['sum'],
+        );
+        $reg->removeMovements($value);
+        $value['sum'] = $v['newsum'];
+        $reg->addMovement($value);
+      }
+    }
+
+    foreach ($check_after_newsum as $date => $value) {
+      $remnants = $reg->getRemnants(array('date' => $date->modify($date)->getTimestamp()));
+      foreach ($value as $uid => $sum) {
+        $this->assertEqual($sum, isset($remnants[$uid]) ? $remnants[$uid] : 0);
+      }
+    }
+  }
+}

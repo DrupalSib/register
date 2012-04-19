@@ -1,0 +1,13 @@
+<?php
+/**
+ * @file
+ *
+ * Install, update, and uninstall functions for the register_test module.
+ */
+
+/**
+ * Implements hook_schema().
+ */
+function register_test_schema() {
+  return function_exists('register_get_schema') ? register_get_schema('register_test') : array();
+}

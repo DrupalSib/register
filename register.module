@@ -1,0 +1,301 @@
+<?php
+/**
+* @file
+* Core functionality for registers.
+*/
+
+define('REGISTER_TABLE', 'register');
+
+/**
+ * Implementats hook_ctools_plugin_api().
+ */
+function register_ctools_plugin_api($owner, $api) {
+  if ($owner == 'register' && $api == 'default_register_data') {
+    return array('version' => 1);
+  }
+}
+
+/**
+ * Implements hook_ctools_plugin_directory().
+ */
+function register_ctools_plugin_directory($module, $plugin) {
+  if (in_array($module, array('register', 'ctools')) && (!empty($plugin))) {
+    return "plugins/$plugin";
+  }
+}
+
+/**
+ * Implements hook_ctools_plugin_type().
+ */
+function register_ctools_plugin_type() {
+  return array(
+    'register_type' => array(
+      'use hooks' => TRUE,
+    ),
+  );
+}
+
+function register_include($file) {
+  ctools_include($file, 'register');
+}
+
+function register_get_plugins($type, $id = NULL) {
+  return ctools_get_plugins('register', $type, $id = NULL);
+}
+
+function register_export_crud_load($name) {
+  $result = ctools_export_load_object(REGISTER_TABLE, 'names', array($name));
+  if (!isset($result[$name])) {
+    return NULL;
+  }
+  return new RegisterExport($result[$name]);
+}
+
+function register_export_crud_save(&$export) {
+  $update = array();
+  if ($export->getId()) {
+    // Existing record.
+    $update = array('register_name');
+  }
+  drupal_write_record(REGISTER_TABLE, $export->buildExportObject(), $update);
+}
+
+/**
+* Implements hook_menu().
+*/
+function register_menu() {
+  $items = array();
+
+  // Minor code reduction technique.
+  $base = array(
+    'access callback' => 'user_access',
+    'access arguments' => array('administer register'),
+    'file' => 'register.admin.inc',
+  );
+
+  $items['admin/structure/register'] = $base + array(
+    'title' => 'Registers',
+    'description' => 'Manage registers.',
+    'page callback' => 'register_list',
+    'type' => MENU_NORMAL_ITEM,
+  );
+
+  $items['admin/structure/register/add'] = $base + array(
+    'title' => 'Add new register',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('register_add_form'),
+    'type' => MENU_LOCAL_ACTION,
+  );
+
+  $items['admin/structure/register/%register_menu_export/edit'] = $base + array(
+    'title' => 'Edit register',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('register_edit_form', 3),
+    'type' => MENU_NORMAL_ITEM,
+  );
+
+  $items['admin/structure/register/%register_menu_export/delete'] = $base + array(
+    'title' => 'Delete register',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('register_delete_form', 3),
+    'type' => MENU_NORMAL_ITEM,
+  );
+
+  $items['admin/structure/register/%register_menu_export/revert'] = $base + array(
+    'title' => 'Revert register',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('register_revert_form', 3),
+    'type' => MENU_NORMAL_ITEM,
+  );
+
+  $items['admin/structure/register/%register_menu_export/field/%/edit'] = $base + array(
+    'title' => 'Edit field',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('register_field_edit_form', 3, 5),
+    'type' => MENU_NORMAL_ITEM,
+  );
+
+  $items['admin/structure/register/%register_menu_export/field/%/delete'] = $base + array(
+    'title' => 'Delete field',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('register_field_delete_form', 3, 5),
+    'type' => MENU_NORMAL_ITEM,
+  );
+
+  $items['admin/structure/register/manage'] = $base + array(
+    'title' => 'Manage',
+    'description' => 'Manage registers.',
+    'page callback' => 'register_list',
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+  );
+
+  $items['admin/structure/register/settings'] = $base + array(
+    'title' => 'Settings',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('register_settings_form'),
+    'type' => MENU_LOCAL_TASK,
+  );
+
+  return $items;
+}
+
+/**
+ * Implements menu _load hook.
+ *
+ */
+function register_menu_export_load($item_name) {
+  ctools_include('export');
+  return ctools_export_crud_load(REGISTER_TABLE, $item_name);
+}
+
+/**
+ * Implements hook_theme().
+ */
+function register_theme() {
+  $path = drupal_get_path('module', 'register');
+
+  $base = array(
+    'file' => 'theme.inc',
+    'path' => $path . '/theme',
+  );
+
+  $theme = array();
+
+  $theme['register_edit_form'] = $base + array(
+    'render element' => 'form',
+  );
+
+  return $theme;
+}
+
+/**
+ * Implements hook_cron().
+ */
+function register_cron() {
+  // Clear all not cleared selections.
+  db_delete('register_selection')
+      ->condition('cleared', 0)
+      ->condition('updated', time() - 86400, '<');
+}
+
+/**
+ * Provides instance of register.
+ *
+ * @param string $name
+ * @return RegisterTypeAbstract
+ */
+function register_get($name) {
+  static $cache = array();
+
+  if (!isset($cache[$name])) {
+    ctools_include('export');
+    $register = NULL;
+    $export = ctools_export_crud_load(REGISTER_TABLE, $name);
+    $type = ctools_get_plugins('register', 'register_type', $export->getType());
+    if (!empty($type['handler']['class'])) {
+      $register = new $type['handler']['class']($export->getName());
+      $register->init($export->buildRegisterConfig());
+    }
+    $cache[$name] = $register;
+  }
+
+  return isset($cache[$name]) ? $cache[$name] : NULL;
+}
+
+/**
+ * Provides all registers.
+ *
+ * @param null|string $module
+ * @return array
+ */
+function register_get_all() {
+  ctools_include('export');
+
+  $registers = array();
+  $schema = ctools_export_get_schema(REGISTER_TABLE);
+
+  foreach (ctools_export_default_list(REGISTER_TABLE, $schema) as $name) {
+    $registers[$name] = register_get($name);
+  }
+
+  return $registers;
+}
+
+/**
+ * Provides register type.
+ *
+ * @param null $name
+ * @return array
+ */
+function register_get_type($name = NULL) {
+  static $cache;
+  if (!isset($cache)) {
+    $cache = array();
+    foreach(module_implements('register_type') as $module) {
+      foreach(module_invoke($module, 'register_type') as $key => $value) {
+        $cache[$key] = array_merge($value, array('module' => $module));
+      }
+    }
+  }
+  return $name ? $cache[$name] : $cache;
+}
+
+function register_field_types() {
+  return array(
+    'varchar' => t('Varchar'),
+    'char'    => t('Char'),
+    'text'    => t('Text'),
+    'int'     => t('Int'),
+    'float'   => t('Float'),
+    'numeric' => t('Numeric'),
+    'blob'    => t('Blob')
+  );
+}
+
+function register_field_types_numeric() {
+  return array(
+    'int',
+    'float',
+    'numeric',
+  );
+}
+
+function register_field_default_value_types() {
+  return array(
+    'none'  => t('None'),
+    'null'  => t('Null'),
+    'value' => t('Value'));
+}
+
+function register_field_groups() {
+  return array(
+    'dimensions'  => t('Dimensions'),
+    'resources'   => t('Resources'),
+    'details'     => t('Details'),
+  );
+}
+function register_field_size_presets() {
+  return array(
+    'normal'  => t('Normal'),
+    'tiny'    => t('Tiny'),
+    'small'   => t('Small'),
+    'medium'  => t('Medium'),
+    'big'     => t('Big'),
+  );
+}
+
+function register_types($mode = NULL) {
+  ctools_include('plugins');
+  $plugins = ctools_get_plugins('register', 'register_type');
+
+  if ($mode == 'title') {
+    $result = array();
+    foreach ($plugins as $plugin => $info) {
+      $result[$plugin] = $info['title'];
+    }
+    return $result;
+  }
+  else {
+    return $plugins;
+  }
+}

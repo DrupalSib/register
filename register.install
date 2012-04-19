@@ -1,0 +1,92 @@
+<?php
+/**
+ * @file
+ *
+ * Install, update, and uninstall functions for the register module.
+ */
+
+/**
+ * Implements hook_schema().
+ */
+function register_schema() {
+  return array(
+    'register_selection' => array(
+      'description' => 'Data selection.',
+      'fields' => array(
+        'id' => array(
+          'type' => 'serial',
+          'unsigned' => TRUE,
+          'not null' => TRUE,
+        ),
+        'updated' => array(
+          'type' => 'int',
+          'not null' => TRUE,
+        ),
+        'clean' => array(
+          'type' => 'int',
+          'not null' => TRUE,
+          'default' => 0,
+        ),
+        'table' => array(
+          'type' => 'varchar',
+          'length' => 255,
+          'not null' => TRUE,
+        ),
+      ),
+      'indexes' => array(
+        'updated' => array('updated'),
+        'clean' => array('clean'),
+      ),
+      'primary key' => array('id'),
+    ),
+
+    'register' => array(
+      'description' => t('Table storing register definitions.'),
+      'export' => array(
+        'key' => 'register_name',
+        'identifier' => 'register', // Exports will be defined as $preset
+        'default hook' => 'default_register_data',  // Function hook name.
+        'api' => array(
+          'owner' => 'register',
+          'api' => 'default_register_data',  // Base name for api include files.
+          'minimum_version' => 1,
+          'current_version' => 1,
+        ),
+        'load callback' => 'register_export_crud_load',
+//        'create callback' => 'views_new_view',
+        'save callback' => 'register_export_crud_save',
+        //'delete callback' => 'views_delete_view',
+        //'export callback' => 'views_export_view',
+      ),
+      'fields' => array(
+        'id' => array(
+          'type' => 'serial',
+          'unsigned' => TRUE,
+          'not null' => TRUE,
+          'no export' => TRUE,
+        ),
+        'register_name' => array(
+          'type' => 'varchar',
+          'length' => '255',
+        ),
+        'register_type' => array(
+          'type' => 'varchar',
+          'length' => '60',
+        ),
+        'register_config' => array(
+          'type' => 'text',
+          'size' => 'big',
+          'serialize' => TRUE,
+        ),
+//        'description' => array(
+//          'type' => 'varchar',
+//          'length' => '255',
+//        ),
+      ),
+      'primary key' => array('id'),
+      'unique keys' => array(
+        'register_name' => array('register_name'),
+      ),
+    ),
+  );
+}

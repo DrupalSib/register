@@ -205,17 +205,23 @@ function register_get($name) {
 /**
  * Provides all registers.
  *
- * @param null|string $module
+ * @param null|string $type
+ *   Name of register class.
  * @return array
+ *   Registers.
  */
-function register_get_all() {
+function register_get_all($type = NULL) {
   ctools_include('export');
 
   $registers = array();
-  $schema = ctools_export_get_schema(REGISTER_TABLE);
+  $default_list = ctools_export_default_list(REGISTER_TABLE, ctools_export_get_schema(REGISTER_TABLE));
 
-  foreach (ctools_export_default_list(REGISTER_TABLE, $schema) as $name) {
-    $registers[$name] = register_get($name);
+  foreach ($default_list as $name) {
+    $register = register_get($name);
+
+    if (!$type || get_class($register) == $type) {
+      $registers[$name] = $register;
+    }
   }
 
   return $registers;
